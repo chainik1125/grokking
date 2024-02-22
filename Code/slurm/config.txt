@@ -1,0 +1,30 @@
+ArrayTaskID   seed        wd   grok
+1             0           8    True
+2             1           8    True
+3             2           8    True
+4             3           8    True
+5             4           8    True
+6             5           8    True
+7             6           8    True
+8             7           8    True
+9             8           8    True
+10            9           8    False
+11            0           8    False
+12            1           8    False
+13            2           8    False
+14            3           8    False
+15            4           8    False
+16            5           8    False
+17            6           8    False
+18            7           8    False
+19            8           8    False
+20            9           8    False
+21            0           20   True
+22            1           20   True
+23            0           30   True
+24            1           30   True
+25            0           40   True
+26            1           40   True
+
+
+
