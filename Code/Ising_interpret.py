@@ -162,6 +162,7 @@ def extract_singular_values(folder_name,epoch):
 	model.to(device)
 	model.load_state_dict(full_run_data['model'])
 
+
 	model.to(device)
 
 

@@ -1,0 +1,7 @@
+ArrayTaskID   data_seed_start    data_seed_end    sgd_seed_start    sgd_seed_end    init_seed_start    init_seed_end    wd    grok    train_size
+1             0                  1                0                 1               0                  1                8     True    100
+2             0                  1                0                 1               0                  1                8     False   100
+
+
+
+
