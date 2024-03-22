@@ -3,7 +3,7 @@ import sys
 import dill
 print(int(sys.argv[1]))
 
-
+from dataclasses import dataclass
 from timeit import default_timer as timer
 import time
 import pickle
@@ -28,6 +28,22 @@ import copy
 from data_objects import seed_average_onerun
 
 
+@dataclass
+class TrainArgs:
+    epochs: int
+    lr: float
+    weight_decay: float
+    weight_multiplier: float
+    dropout_prob: float
+    data_seed: int | None = None
+    sgd_seed: int | None = None
+    init_seed: int | None = None
+    device: str = "cpu"
+    grok: str = False
+    test_size: int = 1000
+    train_size: int = 100
+    hiddenlayers: list = None
+    conv_channels: list = None
 
 
 
@@ -444,7 +460,7 @@ if __name__ == '__main__':
 
 
     #Train params
-    epochs=50000
+    epochs=100000
     save_interval=100
     # set torch data type and random seeds
     torch.set_default_dtype(dtype)
@@ -456,21 +472,49 @@ if __name__ == '__main__':
     print(str(root))
     for i in range(len(data_seeds)):
         data_seed=data_seeds[i]
-        sgd_seed=sgd_seeds[i]
-        init_seed=init_seeds[i]
-        params_dic={'weight_decay':weight_decay,'weight_multiplier':weight_multiplier,'learning_rate':learning_rate,'hidden_layers':hiddenlayers,'conv_channels':conv_channels,'train_size':train_size,'test_size':test_size,'dropout_p':dropout_prob}
-        save_object=seed_average_onerun(data_seed=data_seed,sgd_seed=sgd_seed,init_seed=init_seed,params_dic=params_dic)
-        save_object.start_time=int(time.time())
-        train_loader,test_loader=create_ising_dataset(data_seed=data_seed,train_size=train_size,test_size=test_size)
-        save_object.train_loader=train_loader
-        save_object.test_loader=test_loader
-        model=create_model(init_seed=init_seed)
-        train(epochs=epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=sgd_seed,batch_size=train_size,one_run_object=save_object)
-        
-        save_name=f'data_seed_{data_seed}_time_{int(time.time())}'
-        run_folder=str(root)
-        with open(str(root)+"/"+save_name, "wb") as dill_file:
-            dill.dump(save_object, dill_file)    
+        for j in range(len(sgd_seeds)):
+            sgd_seed=sgd_seeds[j]
+            for k in  range(len(init_seeds)):
+                init_seed=init_seeds[k]
+                #Define a data_run_object. Save this instead of the dictionary.
+                args = TrainArgs(
+                    epochs=epochs,
+                    lr=learning_rate,
+                    weight_decay=weight_decay, # 0.001,
+                    weight_multiplier=weight_multiplier,
+                    dropout_prob=dropout_prob,
+                    data_seed=data_seeds[i],
+                    sgd_seed=sgd_seeds[j],
+                    init_seed=init_seeds[k],
+                    device=device,
+                    grok=grok,
+                    hiddenlayers=hiddenlayers,
+                    conv_channels=conv_channels,
+                    test_size=test_size,
+                    train_size=train_size
+                    )
+                
+                params_dic={'weight_decay':weight_decay,'weight_multiplier':weight_multiplier,'learning_rate':learning_rate,'hidden_layers':hiddenlayers,'conv_channels':conv_channels,'train_size':train_size,'test_size':test_size,'dropout_p':dropout_prob}
+                save_object=seed_average_onerun(data_seed=args.data_seed,sgd_seed=args.sgd_seed,init_seed=args.init_seed,params_dic=params_dic)
+                save_object.trainargs=args
+                save_object.start_time=int(time.time())
+                train_loader,test_loader=create_ising_dataset(data_seed=data_seed,train_size=train_size,test_size=test_size)
+                save_object.train_loader=train_loader
+                save_object.test_loader=test_loader
+                model=create_model(init_seed=init_seed)
+                train(epochs=args.epochs,initial_model=model,save_interval=save_interval,train_loader=train_loader,test_loader=test_loader,sgd_seed=args.sgd_seed,batch_size=args.train_size,one_run_object=save_object)
+                
+                save_name=f'data_seed_{data_seed}_time_{int(time.time())}'
+                run_folder=str(root)
+                # with open(str(root)+"/"+save_name, "wb") as dill_file:
+                #     dill.dump(save_object, dill_file)
+                try:
+                    with open(str(root)+"/"+save_name, "wb") as dill_file:
+                        dill.dump(save_object, dill_file)
+                except Exception as e:
+                    print(f"An error occurred during serialization: {e}")
+                
+                print(str(root)+"/"+save_name)
     # fig,axs=plt.subplots(1,2)
     # axs[0].hist(np.ndarray.flatten(save_object.models[0]['model']['fc_layers.0.weight'].detach().numpy()))
     # axs[1].hist(np.ndarray.flatten(save_object.models[1900]['model']['fc_layers.0.weight'].detach().numpy()))

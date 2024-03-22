@@ -45,6 +45,7 @@ class seed_average_onerun():
         self.pcadata=None#I think I'll probably have a dictionary with all of the objects I need to calculate these
         self.pcafig=None
         self.neuroncorrs=None #Will be a dictionary with epoch, neuron indices as the objects.
+        self.trainargs=None
     #Now I want to write scripts for the analysis function.
     
     def make_loss_curves(self):
@@ -271,7 +272,7 @@ class seed_average_onerun():
     
 
     def weights_histogram_epochs2(self,non_grokked_object):
-        epochs=self.model_epochs()[0::3]
+        epochs=self.model_epochs()[0::10]
         ng_epochs=non_grokked_object.model_epochs()
         if epochs!=ng_epochs:
             print('Grokked and non-grokked epochs not the same!')
@@ -458,11 +459,167 @@ class seed_average_onerun():
         fig.layout.sliders = sliders
         return fig
 
+
+#Object for storing all the runs within a given param
+class seed_run_container():
+    def __init__(self):
+        # params_dic={'weight_decay':weight_decay,'weight_multiplier':weight_multiplier,'learning_rate':learning_rate,'hidden_layers':hiddenlayers,'conv_channels':conv_channels,'train_size':train_size,'test_size':test_size,'dropout_p':dropout_prob}
+        self.params_dic={}#Rememeber that I want an object that holds different seeds of the same params
+        self.runs_dic={}#
     
+    def aggregate_runs(self,folder):
+        onlyfiles = [f for f in os.listdir(folder) if 'time_' in f]
+        #extract the trainargs object and the params_dic
+        for runfile in onlyfiles:
+            print(runfile)
+            if os.path.getsize(str(folder)+'/'+runfile) > 0:  # Checks if the file is not empty
+                with open(str(folder)+'/'+runfile, 'rb') as file:
+                    try:
+                        runobj = dill.load(file)
+                        # Proceed with using runobj
+                    except EOFError:
+                        print("Failed to load the object. The file may be corrupted or incomplete.")
+            else:
+                print("The file is empty.")
+
+            
+            with open(str(folder)+'/'+runfile,'rb') as file:
+                runobj=dill.load(file)
+            keys_to_ignore=['data_seed','sgd_seed','init_seed']
+            
+            filtered_dict1 = {k: v for k, v in runobj.params_dic.items() if k not in keys_to_ignore}
+            filtered_dict2 = {k: v for k, v in self.params_dic.items() if k not in keys_to_ignore}
+
+
+            if filtered_dict1==filtered_dict2:
+                key0=(runobj.data_seed,runobj.sgd_seed,runobj.init_seed)
+                if key0 in self.runs_dic.keys():
+                    if runobj==self.runs_dic[key0]:
+                        pass
+                    else:
+                        print('duplicate non-identical runs!')
+                else:
+                    self.runs_dic[(runobj.data_seed,runobj.sgd_seed,runobj.init_seed)]=runobj
+            
+    def create_average_run(self,fixed_seeds):
+        # self.models={} #You'll save your models here
+        # self.train_losses=None
+        # self.test_losses=None
+        # self.train_accuracies=None
+        # self.test_accuracies=None
+        averaged_attributes=['train_losses','test_losses','train_accuracies','test_accuracies']
+        if fixed_seeds==None:
+            avg_run=seed_average_onerun(data_seed=None,sgd_seed=None,init_seed=None,params_dic=self.params_dic)
+            
+            for seed_key in self.runs_dic.keys():
+                run_obj=self.runs_dic[seed_key]
+                for attribute in averaged_attributes:
+                    pass
+
+        return None
+    
+    def make_weights_histogram2(self,non_grokked_container,epoch,fig):
+        #last_epoch=max(self.models.keys())
+        avg_weights_grok=np.array([])
+        avg_weights_nogrok=np.array([])
+        first=True
+        for seed_key in self.runs_dic.keys():
+            grokked_run=self.runs_dic[seed_key]
+            grok_state_dic=grokked_run.models[epoch]['model']
+
+            non_grokked_object=non_grokked_container.runs_dic[seed_key]
+            nogrok_state_dic=non_grokked_object.models[epoch]['model']
+            grok_weights=[grok_state_dic[key] for key in grok_state_dic.keys() if 'weight' in key]
+            nogrok_weights=[nogrok_state_dic[key] for key in nogrok_state_dic.keys() if 'weight' in key]
+            if first:
+                avg_weights_grok=grok_weights
+                avg_weights_nogrok=nogrok_weights
+            else:
+                avg_weights_grok=[avg_weights_grok[i]+grok_weights[i] for i in range(len(avg_weights_grok))]
+                avg_weights_nogrok=[avg_weights_nogrok[i]+nogrok_weights[i] for i in range(len(avg_weights_nogrok))]
+            
+            
+        #titles=['Grok Accuracy']+[f'Grok Layer {i}' for i in range(len(weights_grok))]+['No Grok Accuracy']+[f'No Grok Layer {i}' for i in range(len(weights_nogrok))]
+        avg_weights_grok=[avg_weights_grok[i]/(len(self.runs_dic.keys())) for i in range(len(avg_weights_grok))]
+        avg_weights_nogrok=[avg_weights_nogrok[i]/(len(self.runs_dic.keys())) for i in range(len(avg_weights_nogrok))]
+        avg_test_accuracies_grok=np.mean(np.array([np.array(self.runs_dic[seed_key].test_accuracies) for seed_key in self.runs_dic.keys()]),axis=0)
+        avg_train_accuracies_grok=np.mean(np.array([np.array(self.runs_dic[seed_key].train_accuracies) for seed_key in self.runs_dic.keys()]),axis=0)
+        avg_test_accuracies_nogrok=np.mean(np.array([np.array(non_grokked_container.runs_dic[seed_key].test_accuracies) for seed_key in self.runs_dic.keys()]),axis=0)
+        avg_train_accuracies_nogrok=np.mean(np.array([np.array(non_grokked_container.runs_dic[seed_key].train_accuracies) for seed_key in self.runs_dic.keys()]),axis=0)
+        print(len(avg_test_accuracies_grok))
+
+
+        fig.add_trace(go.Scatter(x=list(range(len(avg_train_accuracies_grok))),y=avg_train_accuracies_grok,marker=dict(color='black'),showlegend=True,name='Grok Train'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(avg_test_accuracies_grok))),y=avg_test_accuracies_grok,marker=dict(color='orange'),showlegend=True,name='Grok Test'),row=1,col=1)
+        fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(avg_test_accuracies_grok), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=1, col=1)
+
+        fig.add_trace(go.Scatter(x=list(range(len(avg_train_accuracies_nogrok))),y=avg_train_accuracies_nogrok,marker=dict(color='black'),showlegend=True,name='Grok Train'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=list(range(len(avg_test_accuracies_nogrok))),y=avg_test_accuracies_nogrok,marker=dict(color='orange'),showlegend=True,name='Grok Test'),row=2,col=1)
+        fig.add_trace(go.Scatter(x=[epoch, epoch], y=[min(avg_test_accuracies_nogrok), 1],mode="lines", line=dict(color="green",dash='dash'), showlegend=False),row=2, col=1)
+        run0=list(self.runs_dic.values())[0]
+        if epoch==run0.model_epochs()[0]:
+            fig.update_xaxes(title_text="Epoch", row=1, col=1)
+            fig.update_yaxes(title_text="Accuracy", row=1, col=1)
+            fig.update_xaxes(title_text="Epoch", row=2, col=1)
+            fig.update_yaxes(title_text="Accuracy", row=2, col=1)
+
+        for i in range(len(avg_weights_grok)):
+            flattened_gw=torch.flatten(avg_weights_grok[i]).detach().numpy()
+            flattened_ngw=torch.flatten(avg_weights_nogrok[i]).detach().numpy()
+            showleg=False
+            if i==0:
+                showleg=True
+            fig.add_trace(go.Histogram(x=flattened_gw,marker=dict(color='red'),showlegend=showleg,name='Grok'),row=1,col=i+2)
+            fig.add_trace(go.Histogram(x=flattened_ngw,marker=dict(color='blue'),showlegend=showleg,name='No Grok'),row=2,col=i+2)
+
+            # fig.add_trace(go.Histogram(x=[epoch], name=f'Grok_Epoch_{epoch}'),row=1,col=i+2)  # Placeholder histogram
+            # fig.add_trace(go.Histogram(x=[epoch + 0.5], name=f'NoGrok_Epoch_{epoch}'),row=2,col=i+2)  # Placeholder histogram
+            if epoch==run0.model_epochs()[0]:
+                fig.update_xaxes(title_text="Weight", row=1, col=i+1)
+                fig.update_yaxes(title_text="Freq", row=1, col=i+1)
+                fig.update_xaxes(title_text="Weight", row=2, col=i+1)
+                fig.update_yaxes(title_text="Freq", row=2, col=i+1)
+
+    #Now I want to write scripts for the analysis function.
+
+
+    def weights_histogram_epochs2(self,non_grokked_container):
+        run0=list(self.runs_dic.values())[0]
+        epochs=run0.model_epochs()[0::20]
+        run0_ng=list(non_grokked_container.runs_dic.values())[0]
+        ng_epochs=run0_ng.model_epochs()
+        if epochs!=ng_epochs:
+            print('Grokked and non-grokked epochs not the same!')
+        grok_state_dic=run0.models[epochs[0]]['model']
+        weights_grok=[grok_state_dic[key] for key in grok_state_dic.keys() if 'weight' in key]
+        titles=['Grok Accuracy']+[f'Grok Layer {i}' for i in range(len(weights_grok))]+['No Grok Accuracy']+[f'No Grok Layer {i}' for i in range(len(weights_grok))]
+        fig=make_subplots(rows=2,cols=len(weights_grok)+1,subplot_titles=titles)
+        for epoch in epochs:
+            self.make_weights_histogram2(non_grokked_container,epoch,fig)
         
-
-
-
+        total_plots=6+2*(len(weights_grok))
+        print(len(fig.data))
+        for i in range(len(fig.data)):
+            fig.data[i].visible=False
+        for i in range(total_plots):
+            fig.data[i].visible=True
+        #Now update the slider
+        steps = []
+        
+        for i in range(len(epochs)):
+            step = dict(
+                method = 'restyle',
+                args = ['visible',[False] * len(fig.data)],
+            )
+            for j in range(total_plots):
+                step['args'][1][total_plots*i+j] = True
+            steps.append(step)
+        
+        sliders = [dict(
+            steps = steps,
+        )]
+        fig.layout.sliders = sliders
+        fig.show()
 
 
 # # run_folder=str(root)

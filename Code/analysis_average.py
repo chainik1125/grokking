@@ -3,20 +3,26 @@ from data_objects import *
 
 
 
-data_object_file_name='../NewCluster/grok_True_time_1708677333/data_seed_0_time_1708678502'
-non_grokked_file_name='../NewCluster/grok_False_time_1708679156/data_seed_0_time_1708680287'
+data_object_file_name='grok_container_time_1711050013.dill'
+non_grokked_file_name='nogrok_container_time_1711051645.dill'
 
-data_object_file_name='../NewCluster/grok_True_time_1708703980/data_seed_0_time_1708704502'
-non_grokked_file_name='../NewCluster/grok_False_time_1708704596/data_seed_0_time_1708705117'
+
 with open(data_object_file_name, 'rb') as in_strm:
-    single_run = dill.load(in_strm)
+    avg_run = dill.load(in_strm)
 with open(non_grokked_file_name, 'rb') as in_strm:
-    single_run_ng = dill.load(in_strm)
-
+    avg_run_ng = dill.load(in_strm)
+for run_key in avg_run.runs_dic.keys():
+    avg_run.runs_dic[run_key].weights_histogram_epochs2(avg_run_ng.runs_dic[run_key])
+exit()
 # single_run.losscurvesfig=single_run.make_loss_curves()
 # single_run.losscurvesfig.show()
-single_run.weightshistfig=single_run.make_weights_histogram(non_grokked_object=single_run_ng,epoch=900)
-print(single_run.model_epochs())
+lwg=4
+titles=['Grok Accuracy']+[f'Grok Layer {i}' for i in range(lwg)]+['No Grok Accuracy']+[f'No Grok Layer {i}' for i in range(lwg)]
+fig=make_subplots(rows=2,cols=lwg+1,subplot_titles=titles)
+#avg_run.make_weights_histogram2(non_grokked_container=avg_run_ng,fig=fig,epoch=900).show()
+avg_run.weights_histogram_epochs2(avg_run_ng)
+exit()
+
 
 # grok_state_dic1=single_run.models[0]['model']
 # weights_grok1=[grok_state_dic1[key] for key in grok_state_dic1.keys() if 'weight' in key]
